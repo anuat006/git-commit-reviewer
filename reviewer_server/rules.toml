@@ -1,0 +1,26 @@
+# Gitleaks config: keep all default secret rules and add the capstone's extra rule types.
+title = "security-commit-reviewer rules"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "hardcoded-password"
+description = "Hard-coded password"
+regex = '''(?i)\b(?:password|passwd|pwd)\b\s*[:=]\s*["']([^"'\s]{4,})["']'''
+secretGroup = 1
+keywords = ["password", "passwd", "pwd"]
+
+[[rules]]
+id = "unsafe-config-debug"
+description = "Debug mode enabled"
+regex = '''(?i)\bdebug\s*[:=]\s*(true)\b'''
+secretGroup = 1
+keywords = ["debug"]
+
+[[rules]]
+id = "unsafe-config-tls-verify-disabled"
+description = "TLS/SSL certificate verification disabled"
+regex = '''(?i)\b(?:verify(?:_ssl)?|ssl_verify|rejectUnauthorized)\s*[:=]\s*(false)\b'''
+secretGroup = 1
+keywords = ["verify", "rejectunauthorized"]
