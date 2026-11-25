@@ -1,0 +1,11 @@
+{
+  "number": 3,
+  "html_url": "https://github.com/anuat006/issue-tracker/issues/3",
+  "title": "[Security] HIGH finding(s) in demo @ 04a72c072a",
+  "state": "open",
+  "created_at": "2026-11-25T04:22:04Z",
+  "body": "**Repository:** `demo`  \n**Commit:** `04a72c072a`  \n**Severity:** HIGH  \n**Confidence:** high\n\n### Findings\n| Rule | File | Line | Severity | Evidence |\n|---|---|---|---|---|\n| api_token | `settings.py` | 2 | HIGH | `REDACTED\"` |\n\n### Risk\nAn exposed API token allows unauthorised use of the linked service until it is revoked.\n\n### Recommendation\nRevoke and rotate the token, purge it from history, load it from a secret manager.\n\n_Evidence is redacted. Created after explicit human approval._\n<!-- reviewer commit:04a72c072a repo:demo rules:api_token -->",
+  "author": "anuat006",
+  "repository": "anuat006/issue-tracker",
+  "labels": []
+}

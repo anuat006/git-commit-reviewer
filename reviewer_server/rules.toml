@@ -7,7 +7,7 @@ useDefault = true
 [[rules]]
 id = "hardcoded-password"
 description = "Hard-coded password"
-regex = '''(?i)\b(?:password|passwd|pwd)\b\s*[:=]\s*["']([^"'\s]{4,})["']'''
+regex = '''(?i)(?:password|passwd|pwd)\w*\s*[:=]\s*["']([^"'\s]{4,})["']'''
 secretGroup = 1
 keywords = ["password", "passwd", "pwd"]
 

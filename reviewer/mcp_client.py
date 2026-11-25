@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures as cf
+import inspect
 import json
 import os
+import sys
 import threading
 from contextlib import AsyncExitStack
 from typing import Any, Optional
@@ -58,7 +60,9 @@ class McpClient:
         params = StdioServerParameters(command=self.command, args=self.args,
                                        env={**os.environ, **self.env})
         self._stack = AsyncExitStack()
-        read, write = await self._stack.enter_async_context(stdio_client(params))
+        # Server logs go to OUR current stderr (resolved now, not at import time).
+        extra = {"errlog": sys.stderr} if "errlog" in inspect.signature(stdio_client).parameters else {}
+        read, write = await self._stack.enter_async_context(stdio_client(params, **extra))
         self._session = await self._stack.enter_async_context(ClientSession(read, write))
         await self._session.initialize()
 

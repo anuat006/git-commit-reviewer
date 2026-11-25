@@ -1,0 +1,11 @@
+step event       tool                    human   outcome
+1    alert                                       received
+2    mcp_connect mcp                             OK - discovered ['create_security_issue', 'get_commit_diff', 'scan_commit']
+3    decision    get_diff                        next=get_diff
+4    tool_call   get_commit_diff                 success=True | 2 file(s) changed in 7955777f9e
+5    decision    scan                            next=scan
+6    tool_call   scan_commit                     success=True | 0 finding(s)
+7    decision    diagnose                        next=diagnose
+8    diagnosis                                   severity=NONE findings=0 needs_review=False
+9    decision    finish                          next=finish
+10   final                                       clean: No security findings. No approval needed.

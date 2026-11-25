@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,7 +12,10 @@ from .redact import scrub
 
 # Argument keys that may never be logged, only their presence.
 _NEVER_LOG = {"diff", "body", "approval_token", "payload", "evidence"}
+# Identifiers are logged as-is (they are validated elsewhere): a commit SHA must stay readable.
+_IDENTIFIERS = {"commit_id", "github_repo"}
 _MAX_STR = 120
+_log = logging.getLogger("audit")
 
 
 def safe_inputs(args: dict[str, Any]) -> dict[str, Any]:
@@ -20,6 +24,8 @@ def safe_inputs(args: dict[str, Any]) -> dict[str, Any]:
     for k, v in (args or {}).items():
         if k in _NEVER_LOG:
             out[k] = "<omitted>"
+        elif k in _IDENTIFIERS and isinstance(v, str) and len(v) <= 80:
+            out[k] = v
         elif isinstance(v, str):
             out[k] = scrub(v) if len(v) <= _MAX_STR else f"<str len={len(v)}>"
         elif isinstance(v, (int, float, bool)) or v is None:
@@ -30,9 +36,8 @@ def safe_inputs(args: dict[str, Any]) -> dict[str, Any]:
 
 
 class AuditLog:
-    def __init__(self, path: Optional[str] = "audit_log.jsonl", echo: bool = False):
+    def __init__(self, path: Optional[str] = "audit_log.jsonl"):
         self.path = Path(path) if path else None
-        self.echo = echo
         self.entries: list[dict[str, Any]] = []
         self._lock = threading.Lock()
         if self.path:
@@ -57,10 +62,14 @@ class AuditLog:
             if self.path:
                 with self.path.open("a", encoding="utf-8") as fh:
                     fh.write(json.dumps(entry) + "\n")
-        if self.echo:
-            print(f"[audit {entry['step']:02d}] {event} {tool} -> {entry['outcome']}")
+        _log.debug("[step %02d] %s %s -> %s", entry["step"], event, tool, entry["outcome"])
         return entry
 
     def trail(self) -> str:
-        """Compact 'git -> scanner -> approval -> github' style chain."""
-        return " -> ".join(e["tool"] or e["event"] for e in self.entries)
+        """Compact chain of real actions, e.g. get_commit_diff -> scan_commit -> approval -> create_security_issue."""
+        steps = [e["tool"] for e in self.entries if e["event"] in ("tool_call", "human_gate", "llm_call")]
+        out: list[str] = []
+        for s in steps:                       # collapse retries of the same tool
+            if not out or out[-1] != s:
+                out.append(s)
+        return " -> ".join(out)

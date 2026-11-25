@@ -1,4 +1,5 @@
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -53,7 +54,7 @@ class FakeClient:
         if name == "get_commit_diff":
             if self.calls[name] <= self.diff_fail:
                 raise ToolTimeout("slow")
-            return ok({"diff_handle": "h1", "changed_files": list(self.files)})
+            return ok({"repository": a["repository"], "commit_id": a["commit_id"], "changed_files": list(self.files)})
         if name == "scan_commit":
             return ok({"findings": list(self.findings)})
         good, why = verify_token(SECRET, a["approval_token"], a["repository"], a["commit_id"])
@@ -228,3 +229,44 @@ def test_ollama_client_http_roundtrip_and_errors():
     srv.server_close()
     with pytest.raises(LLMError):
         OllamaClient("m1", "http://127.0.0.1:1", timeout=2).chat_json("s", "u")
+
+
+def test_agent_logs_every_tool_call_without_secrets(tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger="agent")
+    a, _, _ = agent(tmp_path, FakeClient(findings=(dict(FINDING, evidence=f"k='{FAKE_KEY}'"),)), "yes")
+    a.run(REQ)
+    text = caplog.text
+    for tool in ("get_commit_diff", "scan_commit", "create_security_issue"):
+        assert f"-> calling {tool}" in text and f"<- {tool} success=True" in text
+    assert "tools discovered" in text and "human gate: decision=yes" in text
+    assert FAKE_KEY not in text and "approval_token=" in text and "approval_token=<omitted>" in text
+    assert "### Findings" not in text                 # issue body never logged
+
+
+def test_agent_logs_retry_on_timeout(tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger="agent")
+    agent(tmp_path, FakeClient(diff_fail=1))[0].run(REQ)
+    assert "attempt 1/2" in caplog.text and "attempt 2/2" in caplog.text and "retrying" in caplog.text
+
+
+def test_ollama_http_error_is_reported_with_hint():
+    import json as _json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            body = _json.dumps({"error": "model 'nope' not found"}).encode()
+            self.send_response(404); self.send_header("Content-Length", str(len(body)))
+            self.end_headers(); self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    with pytest.raises(LLMError) as e:
+        OllamaClient("nope", f"127.0.0.1:{srv.server_port}", timeout=5).chat_json("s", "u")
+    srv.shutdown(); srv.server_close()
+    assert "HTTP 404" in str(e.value) and "ollama pull nope" in str(e.value) and "not found" in str(e.value)

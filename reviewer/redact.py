@@ -37,6 +37,17 @@ def scrub(text: str) -> str:
     return text
 
 
+def scrub_keeping(text: str, keep: list[str]) -> str:
+    """scrub(), but leave known-safe identifiers (e.g. a full commit sha) untouched."""
+    keep = [k for k in keep if k]
+    for i, k in enumerate(keep):
+        text = text.replace(k, f"\x00{i}\x00")
+    text = scrub(text)
+    for i, k in enumerate(keep):
+        text = text.replace(f"\x00{i}\x00", k)
+    return text
+
+
 def scrub_obj(obj):
     """Recursively scrub strings in dict/list structures."""
     if isinstance(obj, str):

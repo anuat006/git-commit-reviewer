@@ -18,11 +18,11 @@ _used: set = set()
 @mcp.tool()
 def get_commit_diff(repository: str, commit_id: str) -> dict:
     return {"success": True, "summary": "1 file", "error": None,
-            "data": {"diff_handle": "h1", "changed_files": ["config.py"]}}
+            "data": {"repository": repository, "commit_id": commit_id, "changed_files": ["config.py"]}}
 
 
 @mcp.tool()
-def scan_commit(diff_handle: str) -> dict:
+def scan_commit(diff_result: dict) -> dict:
     return {"success": True, "summary": "1 finding", "error": None, "data": {"findings": [
         {"rule": "api_token", "file": "config.py", "line": 3, "evidence": "API_KEY = 'AK****'",
          "severity": "HIGH", "confidence": "high"}]}}
