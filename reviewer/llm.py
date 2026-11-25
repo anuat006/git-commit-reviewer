@@ -45,6 +45,13 @@ class OllamaClient:
                 payload = json.load(resp)
             content = payload["message"]["content"]
             out = json.loads(content)
+        except urllib.error.HTTPError as exc:      # Ollama answered with an error (e.g. 404 model not pulled)
+            try:
+                detail = exc.read().decode("utf-8", "replace")[:200]
+            except Exception:
+                detail = ""
+            hint = f" - run `ollama pull {self.model}` or pick a model from `ollama list`" if exc.code == 404 else ""
+            raise LLMError(f"Ollama returned HTTP {exc.code}: {detail}{hint}") from exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise LLMError(f"Ollama unreachable at {self.host}: {exc}") from exc
         except (KeyError, ValueError) as exc:

@@ -1,0 +1,6 @@
+# secrets: never commit
+.env
+# run output
+audit_log.jsonl
+__pycache__/
+.pytest_cache/

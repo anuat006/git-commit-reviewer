@@ -9,7 +9,7 @@ pytestmark = pytest.mark.skipif(not REPO, reason="set DEMO_REPO")
 def scan(sha):
     d = git_tool.get_commit_diff(REPO, sha)
     assert d["success"], d["error"]
-    s = scanner.scan_commit(d["data"]["diff_handle"])
+    s = scanner.scan_commit(d["data"])
     assert s["success"], s["error"]
     return s["data"]["findings"]
 

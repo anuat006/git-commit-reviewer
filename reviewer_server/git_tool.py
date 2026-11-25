@@ -1,12 +1,13 @@
-"""get_commit_diff: read one commit from a local repo.
+"""get_commit_diff: identify one commit of a local repo and list its changed files.
 
-The raw diff stays inside this process (keyed by an opaque handle). It is never returned
-to the agent, so no secret can leak through the tool result or the audit log.
+Stateless. The result (repository, full commit_id, changed_files) is exactly what
+scan_commit needs as input. The raw diff is never returned, so no secret can leak
+through a tool result, the agent state or the logs.
 """
 from __future__ import annotations
 
+import logging
 import re
-import secrets
 import subprocess
 from pathlib import Path
 
@@ -14,12 +15,7 @@ from .common import result, run
 
 _SHA = re.compile(r"^[0-9a-fA-F]{4,64}$")
 GIT_TIMEOUT = 20.0
-_store: dict[str, dict] = {}          # diff_handle -> {repo, sha}
-
-
-def lookup(handle: str) -> dict | None:
-    return _store.get(handle)
-
+log = logging.getLogger("server")
 
 def get_commit_diff(repository: str, commit_id: str) -> dict:
     repo = Path(repository).expanduser()
@@ -34,15 +30,16 @@ def get_commit_diff(repository: str, commit_id: str) -> dict:
             return result(False, "Commit not found", error=sha.stderr.strip()[:200] or "unknown commit")
         full = sha.stdout.strip()
         files = run(["git", "-C", str(repo), "diff-tree", "--no-commit-id", "--name-only",
-                     "-r", "--root", full], GIT_TIMEOUT)
+                     "-r", "-z", "--root", full], GIT_TIMEOUT)      # -z: exact names, no quoting
         if files.returncode != 0:
             return result(False, "Could not list changed files", error=files.stderr.strip()[:200])
     except subprocess.TimeoutExpired:
         return result(False, "git timed out", error=f"git timed out after {GIT_TIMEOUT}s")
     except FileNotFoundError:
         return result(False, "git not installed", error="git executable not found")
-    changed = [f for f in files.stdout.splitlines() if f]
-    handle = secrets.token_hex(8)
-    _store[handle] = {"repo": str(repo), "sha": full}
+    changed = [f for f in files.stdout.split("\0") if f]
+    log.info("commit %s: %d file(s) extracted:", full[:10], len(changed))
+    for f in changed:
+        log.info("    %s   (%s)", f, repo.resolve() / f)
     return result(True, f"{len(changed)} file(s) changed in {full[:10]}",
-                  {"diff_handle": handle, "commit_id": full, "changed_files": changed})
+                  {"repository": str(repo.resolve()), "commit_id": full, "changed_files": changed})
